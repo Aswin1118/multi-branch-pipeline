@@ -14,12 +14,6 @@ pipeline {
             '''
         }
     }
-    options {
-        buildDiscarder logRotator( 
-                    daysToKeepStr: '16', 
-                    numToKeepStr: '10'
-            )
-    }
 
     stages {
         stage('Cleanup Workspace') {
@@ -35,52 +29,40 @@ pipeline {
             }
         }
 
-        stage('PR Build and Test') {
-            when {
-                changeRequest()
+        stage('Test') {
+            steps('Unit Testing') {
+                sh "echo 'Running Unit Tests for PR'"
             }
-            stages {
-                stage('Unit Testing') {
-                    steps {
-                        sh "echo 'Running Unit Tests for PR'"
-                        // Add actual unit test commands here
-                    }
-                }
 
-                stage('Code Analysis') {
-                    steps {
-                        sh "echo 'Running Code Analysis for PR'"
-                        // Add actual code analysis commands here
-                    }
-                }
-
-                stage('Build Code') {
-                    steps {
-                        sh "echo 'Building Artifact for PR'"
-                        // Add actual build commands here
-                    }
-                }
+            steps('Code Analysis') {
+                sh "echo 'Running Code Analysis for PR'"
             }
         }
 
         stage('Develop Branch Tasks') {
             when {
-                allOf {
+                anyOf {
                     branch 'develop'
-                    not { changeRequest() }
+                    changeRequest target: 'develop'
                 }
             }
             stages {
                 stage('Build for Develop') {
                     steps {
-                        sh "echo 'Building for Develop'"
-                        // Add develop build steps
+                        sh "echo 'Building for Develop (PR or Commit)'"
                     }
                 }
                 stage('Deploy to Dev Environment') {
+                    when {
+                        allOf {
+                            branch 'develop'
+                            not {
+                                changeRequest()
+                            }
+                        }
+                    }
                     steps {
-                        sh "echo 'Deploying to Dev Environment'"
-                        // Add dev deployment steps
+                        sh "echo 'Deploying to Dev Environment (Commit only)'"
                     }
                 }
             }
@@ -88,22 +70,28 @@ pipeline {
 
         stage('Main Branch Tasks') {
             when {
-                allOf {
+                anyOf {
                     branch 'main'
-                    not { changeRequest() }
+                    changeRequest target: 'main'
                 }
             }
             stages {
                 stage('Build for Production') {
                     steps {
                         sh "echo 'Building for Production'"
-                        // Add production build steps
                     }
                 }
                 stage('Deploy to Pre-prod') {
+                    when {
+                        allOf {
+                            branch 'main'
+                            not {
+                                changeRequest()
+                            }
+                        }
+                    }
                     steps {
                         sh "echo 'Deploying to Pre-prod Environment'"
-                        // Add pre-prod deployment steps
                     }
                 }
             }
@@ -113,7 +101,6 @@ pipeline {
     post {
         always {
             sh "echo 'Pipeline Completed'"
-            // Add any cleanup or notification steps here
         }
     }
 }
